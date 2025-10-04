@@ -101,7 +101,6 @@ class EGRMWOA():
                 num = max(1, self.dim // 2)
                 num = min(num, 6)
 
-                y = local_optim(self.X[i, :], F[i], radius, num)
 
                 alpha_r1 = np.random.uniform()
                 alpha_r2 = np.random.uniform()
@@ -173,6 +172,7 @@ class EGRMWOA():
                             pos_new = self.gbest_X + w * D * np.exp(b * l) * np.cos(2 * np.pi * l)
 
                     else:
+                        y = self.local_optim(self.X[i, :], F[i], radius, num)
                         gwo_x = (X1[i, :] + X2[i, :] + X3[i, :]) / 3
                         L_Delta = abs(C * y - self.X[i, :])
                         xv = np.vstack((gwo_x, gwo_x + L_Delta, 0.8 * gwo_x + 0.2 * L_Delta, 0.7 * gwo_x + 0.3 * L_Delta,
@@ -207,3 +207,55 @@ class EGRMWOA():
                 idx = F.argmin()
                 self.gbest_X = self.X[idx].copy()
                 self.gbest_F = F.min()
+
+
+    def local_optim(self, x, fv, radius, num):
+        dim = len(x)
+        diranum = np.random.permutation(dim)[:num]
+        res = np.zeros(2 * num + 1)
+        tx = np.zeros((2 * num + 1, dim))
+        tx[0] = x
+        res[0] = fv
+        k = 1
+        for i in range(num):
+            tx[k] = x.copy()
+            tx[k, diranum[i]] = x[diranum[i]] - radius * np.sign(x[diranum[i]])
+            res[k] = self.fitness(tx[k])
+            tx[k + 1] = x.copy()
+            tx[k + 1, diranum[i]] = x[diranum[i]] + radius * np.sign(x[diranum[i]])
+            res[k + 1] = self.fitness(tx[k + 1])
+            k += 2
+        td = np.argmin(res)
+        return tx[td]
+
+    def Reflect(self):
+        mask1 = self.X > self.ub
+        mask2 = self.X < self.lb
+
+        X1 = self.ub - (self.X - self.ub)
+        X2 = self.lb + (self.lb - self.X)
+
+        self.X[mask1] = X1[mask1]
+        self.X[mask2] = X2[mask2]
+
+        rand_X = np.random.uniform(low=self.lb, high=self.ub, size=[self.pop, self.dim])
+        mask = np.logical_or(self.X > self.ub, self.X < self.lb)
+        self.X[mask] = rand_X[mask].copy()
+
+    def Reflect2(self):
+        r5 = np.random.uniform()
+        r6 = np.random.uniform()
+
+        mask1 = self.X > self.ub
+        mask2 = self.X < self.lb
+        max_map = self.ub + r5 * self.ub * (self.ub - self.X) / self.X
+        min_map = self.lb + r6 * np.abs(self.lb * (self.lb - self.X) / self.X)
+
+        rand_X = np.random.uniform(low=self.lb, high=self.ub, size=[self.pop, self.dim])
+        mask3 = max_map == np.inf
+        mask4 = min_map == np.inf
+        max_map[mask3] = rand_X[mask3]
+        min_map[mask4] = rand_X[mask4]
+
+        self.X[mask1] = max_map[mask1]
+        self.X[mask2] = min_map[mask2]
